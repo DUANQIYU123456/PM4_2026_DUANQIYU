@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10ba5f8d5685d5c4d812a1185eeb563f, type: 3}
+  m_Name: GridConfig
+  m_EditorClassIdentifier: Assembly-CSharp::GridConfig
+  width: 32
+  height: 32
+  depth: 32
+  tickInterval: 0.15
+  wrapEdges: 1
+  seedDensity: 0.08
+  species:
+  - {fileID: 11400000, guid: d8b33e7281c686349a644fb07bafb3cb, type: 2}
+  - {fileID: 11400000, guid: 4160640e500623f49baa63ff04999766, type: 2}
+  - {fileID: 11400000, guid: 0b4bab557c4d1bc45874925a06d93b22, type: 2}
+  interactions:
+  - speciesA: {fileID: 11400000, guid: d8b33e7281c686349a644fb07bafb3cb, type: 2}
+    speciesB: {fileID: 11400000, guid: 4160640e500623f49baa63ff04999766, type: 2}
+    type: 1
+    strength: 0.46
+  - speciesA: {fileID: 11400000, guid: 4160640e500623f49baa63ff04999766, type: 2}
+    speciesB: {fileID: 11400000, guid: 0b4bab557c4d1bc45874925a06d93b22, type: 2}
+    type: 2
+    strength: 0.08
+  - speciesA: {fileID: 11400000, guid: d8b33e7281c686349a644fb07bafb3cb, type: 2}
+    speciesB: {fileID: 11400000, guid: 0b4bab557c4d1bc45874925a06d93b22, type: 2}
+    type: 3
+    strength: 0.75

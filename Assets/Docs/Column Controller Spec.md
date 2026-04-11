@@ -1,0 +1,1 @@
+This is a unity component that takes the input from Proximity Sensor and on the basis of the proximity of the detected object increases the intensity of the emissive color material of the assigned target rendered. We're using URP and the color is HDR.
