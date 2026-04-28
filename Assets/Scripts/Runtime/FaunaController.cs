@@ -61,7 +61,7 @@ namespace Ludocore
             {
                 currentBehavior = "Seek";
             }
-            else
+            else 
             {
                 currentBehavior = "Wander";
             }

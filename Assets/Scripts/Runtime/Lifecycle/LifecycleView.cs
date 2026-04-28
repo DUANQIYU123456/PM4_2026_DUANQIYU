@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Ludocore
 {
-    /// <summary>Visual feedback for energy — emission, light, pulse on gain, and rotation based on energy.</summary>
+    /// <summary>Visual feedback for energy — emission, light, and pulse on gain.</summary>
     public class LifecycleView : MonoBehaviour
     {
         //==================== CONFIG =====================
@@ -36,13 +36,10 @@ namespace Ludocore
         [SerializeField] private float pulseDuration = 0.2f;
 
         [Header("Rotation")]
-        [Tooltip("Enable rotation based on energy level.")]
-        [SerializeField] private bool enableRotation = true;
-        [Tooltip("Maximum rotation speed (degrees per second) at full energy.")]
-        [Min(0f)]
-        [SerializeField] private float maxRotationSpeed = 180f;
-        [Tooltip("Rotation axis (typically Y for vertical spin).")]
+        [Tooltip("Continuous rotation axis (normalized direction).")]
         [SerializeField] private Vector3 rotationAxis = Vector3.up;
+        [Tooltip("Rotation speed in degrees per second.")]
+        [SerializeField] private float rotationSpeed = 45f;
 
         //==================== STATE =====================
         private Material _material;
@@ -69,24 +66,15 @@ namespace Ludocore
 
             if (pointLight) pointLight.range = ratio * maxLightRange;
 
-            if (enableRotation)
-            {
-                ApplyRotation(ratio);
-            }
-
             float energy = lifecycle.CurrentEnergy;
             if (energy > _previousEnergy) Pulse();
             _previousEnergy = energy;
+
+            // Apply continuous rotation
+            transform.Rotate(rotationAxis, rotationSpeed * Time.deltaTime);
         }
 
         //==================== PRIVATE =====================
-        private void ApplyRotation(float energyRatio)
-        {
-            float currentRotationSpeed = energyRatio * maxRotationSpeed;
-            Vector3 rotation = rotationAxis.normalized * currentRotationSpeed;
-            transform.Rotate(rotation * Time.deltaTime);
-        }
-
         private void Pulse()
         {
             transform.DOKill();

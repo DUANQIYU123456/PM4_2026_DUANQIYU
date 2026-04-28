@@ -44,7 +44,7 @@ Light:
   serializedVersion: 12
   m_Type: 2
   m_Color: {r: 0.42138353, g: 0.84276724, b: 0.6899344, a: 1}
-  m_Intensity: 1
+  m_Intensity: 0
   m_Range: 2.5
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -259,7 +259,7 @@ MonoBehaviour:
   sensor: {fileID: 6488384594489337764}
   targetRenderer: {fileID: 2699057021688153143}
   materialIndex: 0
-  profile: {fileID: 11400000, guid: 3da7c4befc9161346bc7b91d36f9dffb, type: 2}
+  profile: {fileID: 11400000, guid: 13d34488a3c65914696b02fd38c88914, type: 2}
 --- !u!1 &8845580037502778585
 GameObject:
   m_ObjectHideFlags: 0

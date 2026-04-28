@@ -52,7 +52,6 @@ namespace Ludocore
         public void Spawn()
         {
             if (!prefab) return;
-            if (prefab.scene.isLoaded) Debug.LogWarning("Spawner prefab is assigned to a scene object. Assign a prefab asset instead for proper instantiation.");
 
             for (int i = 0; i < count; i++)
                 SpawnOne();
@@ -62,9 +61,9 @@ namespace Ludocore
         public void SpawnOne()
         {
             if (!prefab) return;
-            if (prefab.scene.isLoaded) Debug.LogWarning("Spawner prefab is assigned to a scene object. Assign a prefab asset instead for proper instantiation.");
 
             var instance = Instantiate(prefab, GetPosition(), GetRotation(), parent);
+            FixSelfReferences(instance, prefab);
             LastSpawned = instance;
             totalSpawned++;
 
@@ -76,9 +75,9 @@ namespace Ludocore
         public void Spawn(GameObject overridePrefab)
         {
             if (!overridePrefab) return;
-            if (overridePrefab.scene.isLoaded) Debug.LogWarning("Spawner override prefab is a scene object. Use a prefab asset for proper instantiation.");
 
             var instance = Instantiate(overridePrefab, GetPosition(), GetRotation(), parent);
+            FixSelfReferences(instance, overridePrefab);
             LastSpawned = instance;
             totalSpawned++;
 
@@ -87,6 +86,18 @@ namespace Ludocore
         }
 
         //==================== PRIVATE =====================
+        /// <summary>When a prefab's Spawner references itself, Instantiate remaps that
+        /// self-reference to the new instance. This restores it to the original prefab
+        /// so replication can chain indefinitely.</summary>
+        private static void FixSelfReferences(GameObject instance, GameObject sourcePrefab)
+        {
+            foreach (var spawner in instance.GetComponentsInChildren<Spawner>())
+            {
+                if (spawner.prefab == instance)
+                    spawner.prefab = sourcePrefab;
+            }
+        }
+
         private Vector3 GetPosition()
         {
             var origin = spawnPoint ? spawnPoint.position : transform.position;
@@ -107,6 +118,7 @@ namespace Ludocore
             return Quaternion.identity;
         }
 
+        //==================== GIZMOS =====================
         private void OnDrawGizmosSelected()
         {
             var origin = spawnPoint ? spawnPoint.position : transform.position;

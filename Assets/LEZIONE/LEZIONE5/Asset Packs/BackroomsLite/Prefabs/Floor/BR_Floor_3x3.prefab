@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 5693869177444481195}
   - component: {fileID: 3383780176222113221}
   - component: {fileID: 228097312293549922}
+  - component: {fileID: 1595977195865737694}
   m_Layer: 0
   m_Name: BR_Floor_3x3
   m_TagString: Ceiling
@@ -114,3 +115,24 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 274289881659272723, guid: e1013e1dfa795d640818f5f7ae9f4d0e, type: 3}
+--- !u!114 &1595977195865737694
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3501810986385036607}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db4f40976aba19847b30955ff14c04de, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ludocore.TileInversionController
+  tile: {fileID: 4146698100257321701}
+  axis: {x: 0, y: 0, z: 1}
+  profile: {fileID: 11400000, guid: 16413f71c8a12654d851fa6a637d33e5, type: 2}
+  onInvertStart:
+    m_PersistentCalls:
+      m_Calls: []
+  onInvertComplete:
+    m_PersistentCalls:
+      m_Calls: []

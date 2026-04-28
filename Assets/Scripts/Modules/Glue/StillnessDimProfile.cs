@@ -61,5 +61,25 @@ namespace Ludocore
         [Tooltip("Reflection intensity multiplier when still")]
         [Min(0f)]
         public float reflectionDim = 0f;
+
+        //==================== SKYBOX =====================
+        [Header("Skybox Exposure (procedural)")]
+        [Tooltip("Skybox _Exposure value when moving")]
+        [Min(0f)]
+        public float skyboxExposureLit = 1f;
+
+        [Tooltip("Skybox _Exposure value when still")]
+        [Min(0f)]
+        public float skyboxExposureDim = 0.1f;
+
+        //==================== DIRECTIONAL LIGHT =====================
+        [Header("Directional Light")]
+        [Tooltip("Directional light intensity when moving")]
+        [Min(0f)]
+        public float directionalLit = 1f;
+
+        [Tooltip("Directional light intensity when still")]
+        [Min(0f)]
+        public float directionalDim = 0f;
     }
 }
