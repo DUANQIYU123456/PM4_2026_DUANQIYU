@@ -1,11 +1,11 @@
 // ============================================================================
-// Grabbable — Logic / verb layer (IInteractable, Hold mode)
+// Grabbable — Logic / verb layer (IInteractable)
 //
-// Physics-driven "carry this thing" verb. While the player holds the interact
-// key, the rigidbody is velocity-driven toward the active GrabAnchor (a
-// transform parented under the camera). Releasing the key applies an optional
-// forward impulse along the anchor's facing — release force is per-object, so
-// a feather flutters and a brick chucks.
+// Physics-driven "carry this thing" verb. Press the interact key once to lift
+// the prop — its rigidbody is velocity-driven toward the active GrabAnchor (a
+// transform parented under the camera). Press again to drop / throw, applying
+// an optional forward impulse along the anchor's facing — release force is
+// per-object, so a feather flutters and a brick chucks.
 //
 // Drop on any prop that should be carryable. Requires:
 //   - Rigidbody (must NOT be kinematic)
@@ -13,18 +13,17 @@
 //   - Exactly one GrabAnchor active in the scene
 //
 // Composes cleanly with Focusable for the standard prompt-UI flow, but does
-// not require it. Implemented as Hold mode so PlayerInteractor's existing
-// dispatch handles release-on-key-up and release-on-look-away for free.
+// not require it. A single tap toggles between grabbed and released —
+// looking away while carried does NOT drop the prop.
 // ============================================================================
 
-using System;
 using UnityEngine;
 
 namespace Ludocore
 {
-    /// <summary>Carry-via-physics IInteractable. Hold mode: rigidbody is driven toward
-    /// GrabAnchor.Current while the interact key is held; released on key-up with an
-    /// optional forward impulse.</summary>
+    /// <summary>Carry-via-physics IInteractable. Toggle: first key-down drives the
+    /// rigidbody toward GrabAnchor.Current; the next key-down drops it (with an
+    /// optional forward impulse).</summary>
     [RequireComponent(typeof(Rigidbody))]
     public class Grabbable : MonoBehaviour, IInteractable
     {
@@ -62,10 +61,8 @@ namespace Ludocore
         private float _cachedAngularDamping;
 
         //==================== IInteractable =====================
-        public InteractionMode Mode => InteractionMode.Hold;
-        public float Duration => 0f; // grab is instantaneous; carry is the "verb"
-        public bool CanInteract => _rb && !_rb.isKinematic && !isHeld;
-        public event Action<float> OnProgress;
+        // Stays interactable while held so a second press can toggle release.
+        public bool CanInteract => _rb && !_rb.isKinematic;
 
         //==================== LIFECYCLE =====================
         private void Awake()
@@ -110,6 +107,13 @@ namespace Ludocore
         {
             if (!CanInteract) return;
 
+            // Press toggle: a key-down while already carried drops the prop.
+            if (isHeld)
+            {
+                ReleaseInternal(applyThrow: throwForce > 0f);
+                return;
+            }
+
             _anchor = GrabAnchor.Current;
             if (!_anchor)
             {
@@ -128,13 +132,6 @@ namespace Ludocore
             _rb.angularDamping = 5f;
 
             isHeld = true;
-            OnProgress?.Invoke(1f);
-        }
-
-        public void CancelInteract()
-        {
-            if (!isHeld) return;
-            ReleaseInternal(applyThrow: throwForce > 0f);
         }
 
         //==================== PRIVATE =====================
@@ -153,7 +150,6 @@ namespace Ludocore
 
             _anchor = null;
             isHeld = false;
-            OnProgress?.Invoke(0f);
         }
     }
 }
@@ -174,9 +170,9 @@ namespace Ludocore
 //      - throwForce: 0 = drop, 3 = light toss, 8+ = chuck.
 //      - breakDistance: lower for fragile / pin-precise, higher for big props.
 //   4. Default control flow (no PlayerInteractor changes needed):
-//      - Look at prop, hold E to lift.
+//      - Look at prop, tap E to lift.
 //      - Move / look around to carry. Anchor rotation drives prop rotation.
-//      - Release E to throw forward (or drop if throwForce = 0).
-//      - Looking away from the prop also releases — for the carry, the prop
-//        sits in front of the camera so the raycast keeps focusing it.
+//      - Tap E again to throw forward (or drop if throwForce = 0).
+//      - Looking away does NOT drop the prop — only a second press, the
+//        breakDistance auto-release, or disabling the component will.
 // ============================================================================

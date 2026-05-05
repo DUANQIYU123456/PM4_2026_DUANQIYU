@@ -2,18 +2,16 @@
 // PlayerInteractor — Glue / input layer
 //
 // One script per player (or camera). Each frame it reads the forward raycast
-// sensor, tracks which focusable it is looking at, and dispatches the
-// interact key through the IInteractable contract — Press for single-tap
-// verbs, Hold for held-progress verbs.
+// sensor, tracks which focusable it is looking at, and on the interact
+// key-down dispatches BeginInteract on whatever IInteractable lives on the
+// focused object.
 //
 // Talks to two small contracts and nothing else:
 //   IFocusable     — drives show/hide of prompts on the currently focused object
-//   IInteractable  — dispatches the verb (Press = key-down completes;
-//                    Hold = key-down begins, key-up or target-change cancels)
+//   IInteractable  — fires the verb on key-down (verb owns its own state)
 //
 // One key from the player's POV. Many verbs under the hood — the interactor
-// asks the target what it can do and dispatches accordingly. No knowledge of
-// trees, resources, buildings, or UI. It just brokers interfaces.
+// just brokers interfaces with no knowledge of pickups, doors, switches, or UI.
 // ============================================================================
 
 using UnityEngine;
@@ -21,7 +19,7 @@ using UnityEngine;
 namespace Ludocore
 {
     /// <summary>Raycast-based interactor. Drives IFocusable transitions and
-    /// dispatches IInteractable Press / Hold verbs on the interact key.</summary>
+    /// dispatches IInteractable.BeginInteract on the interact key-down.</summary>
     public class PlayerInteractor : MonoBehaviour
     {
         //==================== CONFIG =====================
@@ -29,7 +27,7 @@ namespace Ludocore
         [Tooltip("Raycast sensor that looks forward — usually placed on the camera.")]
         [SerializeField] private RaycastSensor raycastSensor;
 
-        [Tooltip("Key pressed (or held) to interact with the currently focused object.")]
+        [Tooltip("Key pressed to interact with the currently focused object.")]
         [SerializeField] private KeyCode interactKey = KeyCode.E;
 
         //==================== STATE =====================
@@ -37,7 +35,6 @@ namespace Ludocore
         [ReadOnly, SerializeField] private GameObject currentTarget;
 
         private IFocusable _currentFocus;
-        private IInteractable _currentHold;
 
         //==================== LIFECYCLE =====================
         private void Update()
@@ -50,10 +47,6 @@ namespace Ludocore
 
         private void OnDisable()
         {
-            // Cancel any in-flight hold and drop focus cleanly.
-            _currentHold?.CancelInteract();
-            _currentHold = null;
-
             _currentFocus?.SetFocused(false);
             _currentFocus = null;
             currentTarget = null;
@@ -85,31 +78,12 @@ namespace Ludocore
 
         private void HandleInteract()
         {
-            // Resolve the currently focused IInteractable, if any.
-            IInteractable interactable = null;
-            if (currentTarget) currentTarget.TryGetComponent(out interactable);
-
-            // Drop a stale hold reference if the underlying object was destroyed.
-            if (_currentHold is Object held && !held) _currentHold = null;
-
-            // Cancel an in-flight hold if the player released, looked away, or it's no longer interactable.
-            if (_currentHold != null)
-            {
-                bool sameTarget = ReferenceEquals(_currentHold, interactable);
-                bool keyHeld = Input.GetKey(interactKey);
-                if (!keyHeld || !sameTarget || !_currentHold.CanInteract)
-                {
-                    _currentHold.CancelInteract();
-                    _currentHold = null;
-                }
-            }
-
-            // Begin a new interaction only on a fresh key-down + valid target.
-            if (interactable == null || !interactable.CanInteract) return;
             if (!Input.GetKeyDown(interactKey)) return;
+            if (!currentTarget) return;
+            if (!currentTarget.TryGetComponent(out IInteractable interactable)) return;
+            if (!interactable.CanInteract) return;
 
             interactable.BeginInteract();
-            if (interactable.Mode == InteractionMode.Hold) _currentHold = interactable;
         }
     }
 }
@@ -123,7 +97,7 @@ namespace Ludocore
 //      reference and pick the interact key (default: E).
 //   3. For any object that should respond to the player's gaze:
 //      - Add a Focusable component (fires focus events)
-//      - Add an IInteractable implementation: Harvestable (Hold mode) or
-//        BuildingSite (Press mode), or your own future verb.
+//      - Add an IInteractable implementation: Grabbable, Activatable, or
+//        Toggleable.
 //      - Make sure its collider is on a layer included in the sensor's mask.
 // ============================================================================
