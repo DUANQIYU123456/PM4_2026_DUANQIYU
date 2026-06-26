@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 519c8e2f281509a4c91689b7d1efc637
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 304155
+  packageName: Hand Mirror
+  packageVersion: 1.0
+  assetPath: Assets/HandMirror/Renderer/New Universal Render Pipeline Asset_Renderer.asset
+  uploadId: 718669
