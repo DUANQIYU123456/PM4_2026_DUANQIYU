@@ -9,6 +9,7 @@
 //        wire a UnityEvent response in the Inspector.
 // ============================================
 
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -19,8 +20,13 @@ namespace Ludocore
     {
         private readonly List<GameEventListener> _listeners = new();
 
+        /// <summary>C# event for code subscribers (commands, controllers, scripts). Inspector listeners still use GameEventListener.</summary>
+        public event Action OnRaised;
+
         public void Raise()
         {
+            OnRaised?.Invoke();
+
             // Iterate backwards — listeners may unregister themselves during the callback.
             for (int i = _listeners.Count - 1; i >= 0; i--)
                 _listeners[i].OnEventRaised();

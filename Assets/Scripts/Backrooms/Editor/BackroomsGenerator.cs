@@ -1,21 +1,19 @@
 // ============================================
 // Backrooms Generator
 // ============================================
-// Procedural backrooms level generator.
+// Procedural backrooms level generator (editor window).
+// Layout is computed by BackroomsLayout (plain C#); this
+// window owns the GUI, the build/instantiation pass, and
+// a SceneView debug overlay.
 //
 // Placement math (verified from actual prefab bounds):
-//   Floor:   center-pivot — place at cell CENTER
-//   Wall:    bottom-center pivot — place at edge CENTER
-//   Corner:  origin-pivot — place at grid VERTEX
-//   Ceiling: same floor tiles at wallHeight
-//
-// Layout modes:
-//   Maze             — DFS maze + extra openings
-//   Open Room        — single room, outer walls only
-//   Rooms & Corridors — random rooms connected by maze corridors
+//   Floor:   center pivot      — place at cell CENTER
+//   Wall:    bottom-center     — place at edge CENTER (V-edges rotated 90°)
+//   Corner:  grid-vertex pivot — place at grid VERTEX
+//   Ceiling: floor tiles at wallHeight
+//   All walls are full-height 3x3 (Barrier is None or Full).
 // ============================================
 
-using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -23,25 +21,14 @@ namespace Ludocore
 {
     public class BackroomsGenerator : EditorWindow
     {
-        //==================== TYPES ====================
-
-        private enum EdgeState { Wall, Open, Door, Window }
-
-        private enum LayoutMode
-        {
-            Maze,
-            OpenRoom,
-            RoomsAndCorridors
-        }
-
         //==================== CONSTANTS ====================
 
         private const string PrefabBase = "Assets/Asset Packs/BackroomsLite/Prefabs";
-        private const string MaterialBase = "Assets/Asset Packs/BackroomsLite/Materials";
+        private const string TileSetPrefKey = "BackroomsGenerator_TileSetGUID";
 
         //==================== CONFIG ====================
 
-        private BackroomsTileSet tileSet;
+        [SerializeField] private BackroomsTileSet tileSet;
         private LayoutMode layoutMode = LayoutMode.Maze;
         private int gridWidth = 4;
         private int gridDepth = 4;
@@ -49,12 +36,42 @@ namespace Ludocore
         private int doorChance = 20;
         private int windowChance = 10;
         private int maxRoomSize = 4;
+        private int straightness = 60;
+        private int hallCount = 3;
+        private int corridorWidth = 1;
+        private int maxCeilingTier = 1;
         private bool generateCeiling = true;
         private int seed;
+
+        // Footprint & massing
+        private int irregularity;
+        private int courtyards;
+        private ColumnPattern columnPattern = ColumnPattern.None;
+        private int columnDensity = 40;
+        private int columnBigChance = 25;
+        private int freePostSpacing;            // 0 = off
+
+        // Openings (build-time)
+        private int doorBareChance = 30;        // % of doors that are bare openings (no frame)
+        private int doorObjectChance = 70;      // % of framed doors that get a door object
+        private int windowBareChance = 10;
+        private int windowObjectChance = 90;
+
+        // Surface variety (build-time)
+        private int wallHoleChance;
+        private int floorHoleChance;
+        private int floorDoorChance;
+
+        // Encasing shell
+        private bool encasing;
+        private int encasingWidth = 3;
+        private int encasingHeight = 1;
 
         //==================== STATE ====================
 
         private Vector2 scrollPos;
+        private BackroomsLayout lastLayout;   // for the debug overlay (not serialized; lost on reload)
+        private bool showOverlay = true;
 
         //==================== WINDOW SETUP ====================
 
@@ -62,7 +79,31 @@ namespace Ludocore
         public static void ShowWindow()
         {
             var window = GetWindow<BackroomsGenerator>("Backrooms Generator");
-            window.minSize = new Vector2(340, 520);
+            window.minSize = new Vector2(340, 560);
+        }
+
+        private void OnEnable()
+        {
+            SceneView.duringSceneGui += OnSceneGUI;
+            if (tileSet == null)   // restore the last-used tile set
+            {
+                string guid = EditorPrefs.GetString(TileSetPrefKey, "");
+                if (!string.IsNullOrEmpty(guid))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid);
+                    if (!string.IsNullOrEmpty(path))
+                        tileSet = AssetDatabase.LoadAssetAtPath<BackroomsTileSet>(path);
+                }
+            }
+        }
+
+        private void OnDisable() => SceneView.duringSceneGui -= OnSceneGUI;
+
+        private void RememberTileSet()
+        {
+            string guid = tileSet != null
+                ? AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(tileSet)) : "";
+            EditorPrefs.SetString(TileSetPrefKey, guid);
         }
 
         //==================== GUI ====================
@@ -73,8 +114,11 @@ namespace Ludocore
 
             // --- Tile Set ---
             EditorGUILayout.LabelField("Tile Set", EditorStyles.boldLabel);
+            EditorGUI.BeginChangeCheck();
             tileSet = (BackroomsTileSet)EditorGUILayout.ObjectField(
                 "Tile Set", tileSet, typeof(BackroomsTileSet), false);
+            if (EditorGUI.EndChangeCheck())
+                RememberTileSet();
 
             if (tileSet == null)
             {
@@ -87,17 +131,33 @@ namespace Ludocore
                 return;
             }
 
+            if (GUILayout.Button(new GUIContent("Auto-Populate Tile Set from BackroomsLite",
+                "Scan the BackroomsLite prefab folder and (re)assign all useful family-A pieces.")))
+            {
+                string summary = BackroomsTileSetPopulator.Populate(tileSet, PrefabBase);
+                AssetDatabase.SaveAssets();
+                Debug.Log(summary, tileSet);
+            }
+
             EditorGUILayout.Space();
 
             // --- Layout ---
             EditorGUILayout.LabelField("Layout", EditorStyles.boldLabel);
             layoutMode = (LayoutMode)EditorGUILayout.EnumPopup("Mode", layoutMode);
-
             gridWidth = EditorGUILayout.IntSlider("Width (cells)", gridWidth, 2, 20);
             gridDepth = EditorGUILayout.IntSlider("Depth (cells)", gridDepth, 2, 20);
 
             if (layoutMode == LayoutMode.RoomsAndCorridors)
                 maxRoomSize = EditorGUILayout.IntSlider("Max Room Size", maxRoomSize, 2, 6);
+            if (layoutMode == LayoutMode.Halls)
+            {
+                hallCount = EditorGUILayout.IntSlider("Hall Count", hallCount, 1, 8);
+                corridorWidth = EditorGUILayout.IntSlider("Corridor Width", corridorWidth, 1, 3);
+            }
+            if (layoutMode == LayoutMode.RoomsAndCorridors || layoutMode == LayoutMode.Halls)
+                maxCeilingTier = EditorGUILayout.IntSlider(
+                    new GUIContent("Max Ceiling Tier", "1 = uniform 3m. Higher = some rooms/halls get 2-3x taller ceilings."),
+                    maxCeilingTier, 1, 3);
 
             float cs = tileSet.cellSize;
             EditorGUILayout.HelpBox(
@@ -106,27 +166,115 @@ namespace Ludocore
 
             EditorGUILayout.Space();
 
-            // --- Generation ---
-            EditorGUILayout.LabelField("Generation", EditorStyles.boldLabel);
+            // --- Footprint & Massing ---
+            EditorGUILayout.LabelField("Footprint & Massing", EditorStyles.boldLabel);
+            irregularity = EditorGUILayout.IntSlider(
+                new GUIContent("Irregularity %", "Bite chunks out of the rectangular outline."),
+                irregularity, 0, 100);
+            courtyards = EditorGUILayout.IntSlider(
+                new GUIContent("Courtyards", "Interior voids carved into the space."),
+                courtyards, 0, 6);
+            columnPattern = (ColumnPattern)EditorGUILayout.EnumPopup("Column Pattern", columnPattern);
+            if (columnPattern != ColumnPattern.None)
+            {
+                columnDensity = EditorGUILayout.IntSlider("Column Density %", columnDensity, 0, 100);
+                columnBigChance = EditorGUILayout.IntSlider(
+                    new GUIContent("2x2 Column %", "Chance a column is a thick 2x2 block."),
+                    columnBigChance, 0, 100);
+            }
+            freePostSpacing = EditorGUILayout.IntSlider(
+                new GUIContent("Free Column Spacing", "Free-standing posts in open floor, every N cells (0 = off)."),
+                freePostSpacing, 0, 6);
 
-            if (layoutMode != LayoutMode.OpenRoom)
+            EditorGUILayout.Space();
+
+            // --- Generation ---
+            bool mazeBased = layoutMode == LayoutMode.Maze || layoutMode == LayoutMode.RoomsAndCorridors;
+            if (mazeBased)
+            {
+                EditorGUILayout.LabelField("Generation", EditorStyles.boldLabel);
                 extraOpenings = EditorGUILayout.IntSlider(
                     new GUIContent("Extra Openings %",
                         "Remove extra internal walls for loops and bigger spaces."),
                     extraOpenings, 0, 100);
+                straightness = EditorGUILayout.IntSlider(
+                    new GUIContent("Corridor Straightness %",
+                        "Higher = longer straight corridors instead of a twisty maze."),
+                    straightness, 0, 100);
 
+                EditorGUILayout.Space();
+            }
+
+            // --- Openings ---
+            EditorGUILayout.LabelField("Openings", EditorStyles.boldLabel);
             doorChance = EditorGUILayout.IntSlider(
-                new GUIContent("Door Chance %", "% of open passages that get a door."),
+                new GUIContent("Door Chance %", "% of open passages that get a door edge."),
                 doorChance, 0, 100);
+            if (doorChance > 0)
+            {
+                EditorGUI.indentLevel++;
+                doorBareChance = EditorGUILayout.IntSlider(
+                    new GUIContent("Bare Opening %", "% of doors that are bare openings (no frame, no object)."),
+                    doorBareChance, 0, 100);
+                doorObjectChance = EditorGUILayout.IntSlider(
+                    new GUIContent("Has Door Object %", "% of framed doors that get a door object."),
+                    doorObjectChance, 0, 100);
+                EditorGUI.indentLevel--;
+            }
             windowChance = EditorGUILayout.IntSlider(
                 new GUIContent("Window Chance %", "% of solid internal walls that get a window."),
                 windowChance, 0, 100);
+            if (windowChance > 0)
+            {
+                EditorGUI.indentLevel++;
+                windowBareChance = EditorGUILayout.IntSlider(
+                    new GUIContent("Bare Opening %", "% of windows that are bare openings (no frame)."),
+                    windowBareChance, 0, 100);
+                windowObjectChance = EditorGUILayout.IntSlider(
+                    new GUIContent("Has Glass %", "% of framed windows that get a window object."),
+                    windowObjectChance, 0, 100);
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUILayout.Space();
+
+            // --- Surface Variety ---
+            EditorGUILayout.LabelField("Surface Variety", EditorStyles.boldLabel);
+            wallHoleChance = EditorGUILayout.IntSlider(
+                new GUIContent("Wall Hole %", "% of solid walls replaced with a hole/gap wall."),
+                wallHoleChance, 0, 100);
+            floorHoleChance = EditorGUILayout.IntSlider(
+                new GUIContent("Floor Hole %", "% of floor tiles replaced with a hole/pit tile."),
+                floorHoleChance, 0, 100);
+            floorDoorChance = EditorGUILayout.IntSlider(
+                new GUIContent("Floor Hatch %", "% of floor tiles replaced with a floor-door/hatch tile."),
+                floorDoorChance, 0, 100);
+
+            EditorGUILayout.Space();
+
+            // --- Encasing ---
+            EditorGUILayout.LabelField("Encasing", EditorStyles.boldLabel);
+            encasing = EditorGUILayout.Toggle(
+                new GUIContent("Generate Encasing", "Solid shell around the room so holes reveal a bigger space."),
+                encasing);
+            if (encasing)
+            {
+                encasingWidth = EditorGUILayout.IntSlider(
+                    new GUIContent("Width (cells)", "Horizontal gap around the room on all sides."),
+                    encasingWidth, 1, 12);
+                encasingHeight = EditorGUILayout.IntSlider(
+                    new GUIContent("Height (cells)", "Vertical gap above AND below the room (symmetric)."),
+                    encasingHeight, 1, 4);
+            }
 
             EditorGUILayout.Space();
 
             // --- Options ---
             EditorGUILayout.LabelField("Options", EditorStyles.boldLabel);
             generateCeiling = EditorGUILayout.Toggle("Generate Ceiling", generateCeiling);
+            showOverlay = EditorGUILayout.Toggle(
+                new GUIContent("Show Debug Overlay", "Draw the cell/edge grid in the Scene view."),
+                showOverlay);
             seed = EditorGUILayout.IntField(
                 new GUIContent("Seed", "0 = random each time"), seed);
 
@@ -145,36 +293,29 @@ namespace Ludocore
             if (tileSet == null) return;
             float cs = tileSet.cellSize;
 
-            Random.InitState(seed != 0 ? seed : System.Environment.TickCount);
-
-            // Edge grids — all start as Wall
-            var hEdges = new EdgeState[gridWidth, gridDepth + 1];
-            var vEdges = new EdgeState[gridWidth + 1, gridDepth];
-            Fill(hEdges, EdgeState.Wall);
-            Fill(vEdges, EdgeState.Wall);
-
-            // Layout pass
-            switch (layoutMode)
+            var settings = new LayoutSettings
             {
-                case LayoutMode.Maze:
-                    CarveMaze(hEdges, vEdges);
-                    CarveExtraOpenings(hEdges, vEdges);
-                    break;
+                width = gridWidth,
+                depth = gridDepth,
+                mode = layoutMode,
+                extraOpenings = extraOpenings,
+                doorChance = doorChance,
+                windowChance = windowChance,
+                maxRoomSize = maxRoomSize,
+                straightness = straightness,
+                hallCount = hallCount,
+                corridorWidth = corridorWidth,
+                maxCeilingTier = maxCeilingTier,
+                seed = seed,
+                irregularity = irregularity,
+                courtyards = courtyards,
+                columnPattern = columnPattern,
+                columnDensity = columnDensity,
+                columnBigChance = columnBigChance,
+            };
 
-                case LayoutMode.OpenRoom:
-                    OpenAllInternal(hEdges, vEdges);
-                    break;
-
-                case LayoutMode.RoomsAndCorridors:
-                    PlaceRooms(hEdges, vEdges);
-                    CarveMaze(hEdges, vEdges);
-                    CarveExtraOpenings(hEdges, vEdges);
-                    break;
-            }
-
-            // Decoration pass
-            AssignDoors(hEdges, vEdges);
-            AssignWindows(hEdges, vEdges);
+            var layout = BackroomsLayout.Generate(settings);
+            lastLayout = layout;
 
             // --- Build scene hierarchy ---
             Undo.IncrementCurrentGroup();
@@ -184,289 +325,397 @@ namespace Ludocore
             var root = new GameObject($"Backrooms_{gridWidth}x{gridDepth}");
             Undo.RegisterCreatedObjectUndo(root, "Create Backrooms");
 
-            PlaceFloors(Child("Floor", root.transform), cs);
-            PlaceWalls(Child("Walls", root.transform), hEdges, vEdges, cs);
-            PlaceCorners(Child("Corners", root.transform), hEdges, vEdges, cs);
+            PlaceFloors(Child("Floor", root.transform), layout, cs);
 
+            // Walls split into Inner / Outer so the exterior shell can be toggled.
+            var walls = Child("Walls", root.transform);
+            var innerWalls = Child("Inner", walls);
+            var outerWalls = Child("Outer", walls);
+            PlaceWalls(innerWalls, outerWalls, layout, cs);
+
+            PlacePosts(Child("Posts", root.transform), layout, cs);
+            if (freePostSpacing > 0)
+                PlaceFreePosts(Child("Columns", root.transform), layout, cs, freePostSpacing);
             if (generateCeiling)
-                PlaceCeiling(Child("Ceiling", root.transform), cs);
+                PlaceCeiling(Child("Ceiling", root.transform), layout, cs);
+            if (encasing)
+                PlaceEncasing(Child("Encasing", root.transform), layout, cs, encasingWidth, encasingHeight);
 
             Undo.CollapseUndoOperations(undoGroup);
             Selection.activeGameObject = root;
+            SceneView.RepaintAll();
         }
 
-        //==================== LAYOUT: MAZE ====================
+        //==================== FLOOR / CEILING PLACEMENT ====================
 
-        private void CarveMaze(EdgeState[,] hEdges, EdgeState[,] vEdges)
+        private void PlaceFloors(Transform parent, BackroomsLayout L, float cs)
         {
-            var visited = new bool[gridWidth, gridDepth];
-            var stack = new Stack<Vector2Int>();
-
-            var start = new Vector2Int(Random.Range(0, gridWidth), Random.Range(0, gridDepth));
-            visited[start.x, start.y] = true;
-            stack.Push(start);
-
-            while (stack.Count > 0)
-            {
-                var cur = stack.Peek();
-                var neighbors = UnvisitedNeighbors(cur, visited);
-                if (neighbors.Count == 0) { stack.Pop(); continue; }
-
-                var next = neighbors[Random.Range(0, neighbors.Count)];
-                OpenEdgeBetween(cur, next, hEdges, vEdges);
-                visited[next.x, next.y] = true;
-                stack.Push(next);
-            }
-        }
-
-        private List<Vector2Int> UnvisitedNeighbors(Vector2Int c, bool[,] visited)
-        {
-            var list = new List<Vector2Int>(4);
-            if (c.x > 0 && !visited[c.x - 1, c.y]) list.Add(new Vector2Int(c.x - 1, c.y));
-            if (c.x < gridWidth - 1 && !visited[c.x + 1, c.y]) list.Add(new Vector2Int(c.x + 1, c.y));
-            if (c.y > 0 && !visited[c.x, c.y - 1]) list.Add(new Vector2Int(c.x, c.y - 1));
-            if (c.y < gridDepth - 1 && !visited[c.x, c.y + 1]) list.Add(new Vector2Int(c.x, c.y + 1));
-            return list;
-        }
-
-        private static void OpenEdgeBetween(Vector2Int a, Vector2Int b,
-            EdgeState[,] hEdges, EdgeState[,] vEdges)
-        {
-            if (b.x == a.x + 1) vEdges[b.x, a.y] = EdgeState.Open;
-            else if (b.x == a.x - 1) vEdges[a.x, a.y] = EdgeState.Open;
-            else if (b.y == a.y + 1) hEdges[a.x, b.y] = EdgeState.Open;
-            else if (b.y == a.y - 1) hEdges[a.x, a.y] = EdgeState.Open;
-        }
-
-        private void CarveExtraOpenings(EdgeState[,] hEdges, EdgeState[,] vEdges)
-        {
-            for (int x = 0; x < gridWidth; x++)
-                for (int z = 1; z < gridDepth; z++)
-                    if (hEdges[x, z] == EdgeState.Wall && Random.Range(0, 100) < extraOpenings)
-                        hEdges[x, z] = EdgeState.Open;
-
-            for (int x = 1; x < gridWidth; x++)
-                for (int z = 0; z < gridDepth; z++)
-                    if (vEdges[x, z] == EdgeState.Wall && Random.Range(0, 100) < extraOpenings)
-                        vEdges[x, z] = EdgeState.Open;
-        }
-
-        //==================== LAYOUT: OPEN ROOM ====================
-
-        private void OpenAllInternal(EdgeState[,] hEdges, EdgeState[,] vEdges)
-        {
-            for (int x = 0; x < gridWidth; x++)
-                for (int z = 1; z < gridDepth; z++)
-                    hEdges[x, z] = EdgeState.Open;
-
-            for (int x = 1; x < gridWidth; x++)
-                for (int z = 0; z < gridDepth; z++)
-                    vEdges[x, z] = EdgeState.Open;
-        }
-
-        //==================== LAYOUT: ROOMS & CORRIDORS ====================
-
-        private void PlaceRooms(EdgeState[,] hEdges, EdgeState[,] vEdges)
-        {
-            var occupied = new bool[gridWidth, gridDepth];
-            int attempts = gridWidth * gridDepth * 2;
-
-            for (int i = 0; i < attempts; i++)
-            {
-                int rw = Random.Range(2, maxRoomSize + 1);
-                int rd = Random.Range(2, maxRoomSize + 1);
-                int rx = Random.Range(0, gridWidth - rw + 1);
-                int rz = Random.Range(0, gridDepth - rd + 1);
-                if (rx < 0 || rz < 0) continue;
-
-                // Check for overlap (leave 1-cell corridor gap between rooms)
-                bool blocked = false;
-                for (int x = Mathf.Max(0, rx - 1); x < Mathf.Min(gridWidth, rx + rw + 1) && !blocked; x++)
-                    for (int z = Mathf.Max(0, rz - 1); z < Mathf.Min(gridDepth, rz + rd + 1) && !blocked; z++)
-                        if (occupied[x, z]) blocked = true;
-
-                if (blocked) continue;
-
-                // Place room — mark cells and open internal edges
-                for (int x = rx; x < rx + rw; x++)
-                    for (int z = rz; z < rz + rd; z++)
-                    {
-                        occupied[x, z] = true;
-                        if (x > rx) vEdges[x, z] = EdgeState.Open;
-                        if (z > rz) hEdges[x, z] = EdgeState.Open;
-                    }
-            }
-        }
-
-        //==================== DECORATION ====================
-
-        private void AssignDoors(EdgeState[,] hEdges, EdgeState[,] vEdges)
-        {
-            for (int x = 0; x < gridWidth; x++)
-                for (int z = 1; z < gridDepth; z++)
-                    if (hEdges[x, z] == EdgeState.Open && Random.Range(0, 100) < doorChance)
-                        hEdges[x, z] = EdgeState.Door;
-
-            for (int x = 1; x < gridWidth; x++)
-                for (int z = 0; z < gridDepth; z++)
-                    if (vEdges[x, z] == EdgeState.Open && Random.Range(0, 100) < doorChance)
-                        vEdges[x, z] = EdgeState.Door;
-        }
-
-        private void AssignWindows(EdgeState[,] hEdges, EdgeState[,] vEdges)
-        {
-            for (int x = 0; x < gridWidth; x++)
-                for (int z = 1; z < gridDepth; z++)
-                    if (hEdges[x, z] == EdgeState.Wall && Random.Range(0, 100) < windowChance)
-                        hEdges[x, z] = EdgeState.Window;
-
-            for (int x = 1; x < gridWidth; x++)
-                for (int z = 0; z < gridDepth; z++)
-                    if (vEdges[x, z] == EdgeState.Wall && Random.Range(0, 100) < windowChance)
-                        vEdges[x, z] = EdgeState.Window;
-        }
-
-        //==================== FLOOR PLACEMENT ====================
-        // Floor tiles are CENTER-pivoted.
-        // Cell (cx, cz) → world center = ((cx + 0.5) * cs, 0, (cz + 0.5) * cs)
-
-        private void PlaceFloors(Transform parent, float cs)
-        {
-            if (tileSet.floorTiles == null || tileSet.floorTiles.Length == 0) return;
             float half = cs * 0.5f;
-
-            for (int x = 0; x < gridWidth; x++)
-                for (int z = 0; z < gridDepth; z++)
+            for (int x = 0; x < L.W; x++)
+                for (int z = 0; z < L.D; z++)
                 {
-                    var prefab = Pick(tileSet.floorTiles);
+                    if (!L.IsFloor(x, z)) continue;
+                    var prefab = Pick(PickFloorSet());
                     if (prefab != null)
                         Place(prefab, new Vector3(x * cs + half, 0, z * cs + half),
                             Quaternion.identity, parent);
                 }
         }
 
-        //==================== CEILING PLACEMENT ====================
-        // Same tiles as floor, placed at wallHeight.
-        // The bottom face has Ceiling material — faces downward into room.
+        // Per-cell floor variant: occasionally a hole/pit or a floor-hatch, else clean.
+        private GameObject[] PickFloorSet()
+        {
+            if (NonEmpty(tileSet.floorHole) && Random.Range(0, 100) < floorHoleChance)
+                return tileSet.floorHole;
+            if (NonEmpty(tileSet.floorDoor) && Random.Range(0, 100) < floorDoorChance)
+                return tileSet.floorDoor;
+            return tileSet.floorTiles;
+        }
 
-        private void PlaceCeiling(Transform parent, float cs)
+        //==================== ENCASING ====================
+        // A plain solid box centered on the room so holes reveal a bigger space.
+        // Symmetric padding: a full floor 'height' levels below and a full ceiling
+        // 'height' levels above, with perimeter walls 'width' cells out, stacked to
+        // span the whole box. Uses only floor/wall/ceiling tiles.
+
+        private void PlaceEncasing(Transform parent, BackroomsLayout L, float cs, int width, int height)
+        {
+            width = Mathf.Max(1, width);
+            height = Mathf.Max(1, height);
+            float half = cs * 0.5f;
+            float wh = tileSet.wallHeight;
+
+            var floor = tileSet.floorTiles;
+            var ceil = tileSet.GetCeilingTiles();
+            var wall = tileSet.WallFull;
+            if (!NonEmpty(wall)) return;   // a shell needs at least walls
+
+            int xMin = -width, xMax = L.W + width;     // exclusive
+            int zMin = -width, zMax = L.D + width;
+            float floorY = -height * wh;               // box floor (below the room)
+            float ceilY = wh + height * wh;            // box ceiling (above the room)
+
+            // Box floor + ceiling — full enlarged footprint.
+            for (int x = xMin; x < xMax; x++)
+                for (int z = zMin; z < zMax; z++)
+                {
+                    float cx = x * cs + half, cz = z * cs + half;
+                    if (NonEmpty(floor)) Place(Pick(floor), new Vector3(cx, floorY, cz), Quaternion.identity, parent);
+                    if (NonEmpty(ceil)) Place(Pick(ceil), new Vector3(cx, ceilY, cz), Quaternion.identity, parent);
+                }
+
+            // Perimeter walls — stacked from box floor up to box ceiling.
+            int tiers = 1 + 2 * height;                // (ceilY - floorY) / wh
+            var rot90 = Quaternion.Euler(0, 90, 0);
+            for (int t = 0; t < tiers; t++)
+            {
+                float y = floorY + t * wh;
+                for (int x = xMin; x < xMax; x++)
+                {
+                    Place(Pick(wall), new Vector3(x * cs + half, y, zMin * cs), Quaternion.identity, parent);
+                    Place(Pick(wall), new Vector3(x * cs + half, y, zMax * cs), Quaternion.identity, parent);
+                }
+                for (int z = zMin; z < zMax; z++)
+                {
+                    Place(Pick(wall), new Vector3(xMin * cs, y, z * cs + half), rot90, parent);
+                    Place(Pick(wall), new Vector3(xMax * cs, y, z * cs + half), rot90, parent);
+                }
+            }
+        }
+
+        private void PlaceCeiling(Transform parent, BackroomsLayout L, float cs)
         {
             var tiles = tileSet.GetCeilingTiles();
             if (tiles == null || tiles.Length == 0) return;
             float half = cs * 0.5f;
             float h = tileSet.wallHeight;
 
-            for (int x = 0; x < gridWidth; x++)
-                for (int z = 0; z < gridDepth; z++)
+            for (int x = 0; x < L.W; x++)
+                for (int z = 0; z < L.D; z++)
                 {
+                    // Ceiling covers floor and solid-column cells (it continues above columns).
+                    if (L.cells[x, z].kind == CellKind.Empty) continue;
+                    int tier = Mathf.Max(1, L.cells[x, z].tier);
                     var prefab = Pick(tiles);
                     if (prefab != null)
-                        Place(prefab, new Vector3(x * cs + half, h, z * cs + half),
+                        Place(prefab, new Vector3(x * cs + half, tier * h, z * cs + half),
                             Quaternion.identity, parent);
                 }
         }
 
         //==================== WALL PLACEMENT ====================
-        // Walls are bottom-center-pivoted (center of wall face at Y=0).
-        // Horizontal edge hEdges[col, row] at Z = row*cs, center X = (col+0.5)*cs
-        // Vertical edge vEdges[col, row] at X = col*cs, center Z = (row+0.5)*cs, rotated 90°
 
-        private void PlaceWalls(Transform parent, EdgeState[,] hEdges, EdgeState[,] vEdges, float cs)
+        private void PlaceWalls(Transform inner, Transform outer, BackroomsLayout L, float cs)
         {
             float half = cs * 0.5f;
-
-            // Horizontal edges
-            for (int col = 0; col < gridWidth; col++)
-                for (int row = 0; row <= gridDepth; row++)
-                {
-                    if (hEdges[col, row] == EdgeState.Open) continue;
-                    var pos = new Vector3(col * cs + half, 0, row * cs);
-                    PlaceEdge(hEdges[col, row], pos, Quaternion.identity, parent);
-                }
-
-            // Vertical edges (90° rotation — wall extends along Z)
+            float wh = tileSet.wallHeight;
             var rot90 = Quaternion.Euler(0, 90, 0);
-            for (int col = 0; col <= gridWidth; col++)
-                for (int row = 0; row < gridDepth; row++)
+
+            // Horizontal edges (run along X) — between cells (col,row-1) and (col,row).
+            for (int col = 0; col < L.W; col++)
+                for (int row = 0; row <= L.D; row++)
                 {
-                    if (vEdges[col, row] == EdgeState.Open) continue;
-                    var pos = new Vector3(col * cs, 0, row * cs + half);
-                    PlaceEdge(vEdges[col, row], pos, rot90, parent);
+                    var e = L.EffectiveH(col, row);
+                    int tA = TierOf(L, col, row - 1), tB = TierOf(L, col, row);
+                    var parent = IsOuter(L, col, row - 1, col, row) ? outer : inner;
+                    BuildEdge(e, tA, tB, new Vector3(col * cs + half, 0, row * cs), Quaternion.identity, parent, wh);
+                }
+
+            // Vertical edges (run along Z, rotated 90°) — between (col-1,row) and (col,row).
+            for (int col = 0; col <= L.W; col++)
+                for (int row = 0; row < L.D; row++)
+                {
+                    var e = L.EffectiveV(col, row);
+                    int tA = TierOf(L, col - 1, row), tB = TierOf(L, col, row);
+                    var parent = IsOuter(L, col - 1, row, col, row) ? outer : inner;
+                    BuildEdge(e, tA, tB, new Vector3(col * cs, 0, row * cs + half), rot90, parent, wh);
                 }
         }
 
-        private void PlaceEdge(EdgeState state, Vector3 pos, Quaternion rot, Transform parent)
+        // Ceiling tier of a cell (0 if not floor/column).
+        private static int TierOf(BackroomsLayout L, int x, int z)
         {
-            // Pick wall variant
-            GameObject[] variants = state switch
-            {
-                EdgeState.Door   => tileSet.wallDoor,
-                EdgeState.Window => tileSet.wallWindow,
-                _                => null
-            };
-            if (variants == null || variants.Length == 0)
-                variants = tileSet.wallSolid;
-            if (variants == null || variants.Length == 0) return;
-
-            var prefab = Pick(variants);
-            if (prefab != null)
-                Place(prefab, pos, rot, parent);
-
-            // Door insert at wall center
-            if (state == EdgeState.Door && tileSet.doorInserts is { Length: > 0 })
-            {
-                var insert = Pick(tileSet.doorInserts);
-                if (insert != null)
-                    Place(insert, pos, rot, parent);
-            }
-
-            // Window insert at wall center
-            if (state == EdgeState.Window && tileSet.windowInserts is { Length: > 0 })
-            {
-                var insert = Pick(tileSet.windowInserts);
-                if (insert != null)
-                    Place(insert, pos, rot, parent);
-            }
+            if (!L.InBounds(x, z)) return 0;
+            var c = L.cells[x, z];
+            return (c.kind == CellKind.Floor || c.kind == CellKind.Column) ? Mathf.Max(1, c.tier) : 0;
         }
 
-        //==================== CORNER PLACEMENT ====================
-        // Corners are origin-pivoted — placed exactly at grid vertices.
-        // Place at any vertex where at least one adjacent edge has a wall.
-
-        private void PlaceCorners(Transform parent, EdgeState[,] hEdges, EdgeState[,] vEdges, float cs)
+        // Tallest ceiling tier of the four cells meeting at a grid vertex.
+        private static int VertexTier(BackroomsLayout L, int vx, int vz)
         {
-            if (tileSet.corners == null || tileSet.corners.Length == 0) return;
-
-            for (int vx = 0; vx <= gridWidth; vx++)
-                for (int vz = 0; vz <= gridDepth; vz++)
-                {
-                    if (!HasWallAtVertex(vx, vz, hEdges, vEdges)) continue;
-                    var prefab = Pick(tileSet.corners);
-                    if (prefab != null)
-                        Place(prefab, new Vector3(vx * cs, 0, vz * cs),
-                            Quaternion.identity, parent);
-                }
+            int t = Mathf.Max(
+                Mathf.Max(TierOf(L, vx - 1, vz - 1), TierOf(L, vx, vz - 1)),
+                Mathf.Max(TierOf(L, vx - 1, vz), TierOf(L, vx, vz)));
+            return Mathf.Max(1, t);
         }
 
-        private bool HasWallAtVertex(int vx, int vz, EdgeState[,] hEdges, EdgeState[,] vEdges)
+        // Does any edge meeting this vertex have a wall/fascia segment at level t?
+        // Covers both full walls (stacked) and fascias above an overhang.
+        private static bool PostNeededAt(BackroomsLayout L, int vx, int vz, int t)
         {
-            if (vx > 0 && hEdges[vx - 1, vz] != EdgeState.Open) return true;
-            if (vx < gridWidth && hEdges[vx, vz] != EdgeState.Open) return true;
-            if (vz > 0 && vEdges[vx, vz - 1] != EdgeState.Open) return true;
-            if (vz < gridDepth && vEdges[vx, vz] != EdgeState.Open) return true;
+            if (vx > 0 && EdgeHasWallAt(L.EffectiveH(vx - 1, vz), TierOf(L, vx - 1, vz - 1), TierOf(L, vx - 1, vz), t)) return true;
+            if (vx < L.W && EdgeHasWallAt(L.EffectiveH(vx, vz), TierOf(L, vx, vz - 1), TierOf(L, vx, vz), t)) return true;
+            if (vz > 0 && EdgeHasWallAt(L.EffectiveV(vx, vz - 1), TierOf(L, vx - 1, vz - 1), TierOf(L, vx, vz - 1), t)) return true;
+            if (vz < L.D && EdgeHasWallAt(L.EffectiveV(vx, vz), TierOf(L, vx - 1, vz), TierOf(L, vx, vz), t)) return true;
             return false;
+        }
+
+        private static bool EdgeHasWallAt(Edge e, int tierA, int tierB, int t)
+        {
+            if (e.barrier == Barrier.Full)
+                return t < Mathf.Max(1, Mathf.Max(tierA, tierB));     // stacked wall reaches this level
+            if (tierA > 0 && tierB > 0 && tierA != tierB)             // fascia on an open height-step edge
+                return t >= Mathf.Min(tierA, tierB) && t < Mathf.Max(tierA, tierB);
+            return false;
+        }
+
+        // A Full edge becomes a wall stacked to the taller neighbor (opening on the
+        // bottom tier). An open edge between differing ceiling heights gets a fascia
+        // filling the vertical ceiling step above the passage.
+        private void BuildEdge(Edge e, int tA, int tB, Vector3 basePos, Quaternion rot, Transform parent, float wh)
+        {
+            if (e.barrier == Barrier.Full)
+            {
+                int wallTier = Mathf.Max(1, Mathf.Max(tA, tB));
+                PlaceEdge(e, basePos, rot, parent);                 // bottom tier: opening or solid
+                for (int t = 1; t < wallTier; t++)
+                    Place(Pick(tileSet.WallFull), new Vector3(basePos.x, t * wh, basePos.z), rot, parent);
+                // Ledge caps each level boundary from +1 up (seams + ceiling junction).
+                if (wallTier >= 2 && NonEmpty(tileSet.ledges))
+                    for (int t = 1; t <= wallTier; t++)
+                        Place(Pick(tileSet.ledges), new Vector3(basePos.x, t * wh, basePos.z), rot, parent);
+            }
+            else if (tA > 0 && tB > 0 && tA != tB)                   // open passage, ceiling step
+            {
+                int lo = Mathf.Min(tA, tB), hi = Mathf.Max(tA, tB);
+                for (int t = lo; t < hi; t++)
+                    Place(Pick(tileSet.WallFull), new Vector3(basePos.x, t * wh, basePos.z), rot, parent);
+                if (NonEmpty(tileSet.ledges))
+                    for (int t = lo; t <= hi; t++)
+                        Place(Pick(tileSet.ledges), new Vector3(basePos.x, t * wh, basePos.z), rot, parent);
+            }
+        }
+
+        // A wall is "outer" when its non-floor side is the building exterior
+        // (out of bounds or a border-connected void). Interior dividers, column
+        // faces, and courtyard (interior-void) walls are "inner".
+        private static bool IsOuter(BackroomsLayout L, int ax, int az, int bx, int bz)
+        {
+            bool aFloor = L.IsFloor(ax, az), bFloor = L.IsFloor(bx, bz);
+            if (aFloor && bFloor) return false;
+            int nx = aFloor ? bx : ax, nz = aFloor ? bz : az;  // the non-floor side
+            return L.IsExteriorVoid(nx, nz);
+        }
+
+        // Barrier is always Full when this is called (open edges are skipped earlier).
+        private void PlaceEdge(Edge e, Vector3 pos, Quaternion rot, Transform parent)
+        {
+            switch (e.opening)
+            {
+                case Opening.Door:
+                    PlaceOpening(tileSet.doorVariants, tileSet.doorOpenings,
+                        doorBareChance, doorObjectChance, pos, rot, parent);
+                    break;
+                case Opening.Window:
+                    PlaceOpening(tileSet.windowVariants, tileSet.windowOpenings,
+                        windowBareChance, windowObjectChance, pos, rot, parent);
+                    break;
+                default:
+                    // Solid wall — occasionally a hole/gap wall instead.
+                    var solid = (NonEmpty(tileSet.wallHole) && Random.Range(0, 100) < wallHoleChance)
+                        ? tileSet.wallHole : tileSet.WallFull;
+                    Place(Pick(solid), pos, rot, parent);
+                    break;
+            }
+        }
+
+        // Place a door/window. With bareChance%, place a bare OPENING (cutout, no
+        // frame, no object). Otherwise place a shape-matched FIXTURE cutout, and
+        // with objectChance% also place its matching object (not every fixture gets one).
+        private void PlaceOpening(WallOpeningSet[] fixtures, GameObject[] openings,
+            int bareChance, int objectChance, Vector3 pos, Quaternion rot, Transform parent)
+        {
+            if (NonEmpty(openings) && Random.Range(0, 100) < bareChance)
+            {
+                Place(Pick(openings), pos, rot, parent);
+                return;
+            }
+
+            // Reservoir-pick a fixture shape that has cutouts.
+            WallOpeningSet chosen = null;
+            int seen = 0;
+            if (fixtures != null)
+                foreach (var v in fixtures)
+                    if (v != null && NonEmpty(v.cutouts) && Random.Range(0, ++seen) == 0)
+                        chosen = v;
+
+            if (chosen == null)
+            {
+                Place(Pick(NonEmpty(openings) ? openings : tileSet.WallFull), pos, rot, parent);
+                return;
+            }
+
+            Place(Pick(chosen.cutouts), pos, rot, parent);
+            if (NonEmpty(chosen.inserts) && Random.Range(0, 100) < objectChance)
+                Place(Pick(chosen.inserts), pos, rot, parent);  // same transform as cutout (verified)
+        }
+
+        //==================== POST PLACEMENT ====================
+        // Posts (round faces, rotation-proof) at every wall vertex — used as the
+        // corner piece, since the corner tiles have one flat face that mis-rotates.
+
+        private void PlacePosts(Transform parent, BackroomsLayout L, float cs)
+        {
+            if (!NonEmpty(tileSet.posts)) return;
+            float wh = tileSet.wallHeight;
+
+            for (int vx = 0; vx <= L.W; vx++)
+                for (int vz = 0; vz <= L.D; vz++)
+                {
+                    int top = VertexTier(L, vx, vz);
+                    for (int t = 0; t < top; t++)
+                    {
+                        if (!PostNeededAt(L, vx, vz, t)) continue;
+                        var prefab = Pick(tileSet.posts);
+                        if (prefab != null)
+                            Place(prefab, new Vector3(vx * cs, t * wh, vz * cs), Quaternion.identity, parent);
+                    }
+                }
+        }
+
+        // Free-standing posts on a lattice in open floor (a colonnade) — placed only
+        // at interior vertices fully surrounded by floor and clear of walls.
+        private void PlaceFreePosts(Transform parent, BackroomsLayout L, float cs, int spacing)
+        {
+            if (spacing <= 0 || !NonEmpty(tileSet.posts)) return;
+            float wh = tileSet.wallHeight;
+
+            for (int vx = spacing; vx < L.W; vx += spacing)
+                for (int vz = spacing; vz < L.D; vz += spacing)
+                {
+                    bool openHere = L.IsFloor(vx - 1, vz - 1) && L.IsFloor(vx, vz - 1) &&
+                                    L.IsFloor(vx - 1, vz) && L.IsFloor(vx, vz);
+                    if (!openHere || L.HasFullWallAtVertex(vx, vz)) continue;
+                    int tier = VertexTier(L, vx, vz);
+                    for (int t = 0; t < tier; t++)
+                    {
+                        var prefab = Pick(tileSet.posts);
+                        if (prefab != null)
+                            Place(prefab, new Vector3(vx * cs, t * wh, vz * cs), Quaternion.identity, parent);
+                    }
+                }
+        }
+
+        //==================== DEBUG OVERLAY ====================
+
+        private void OnSceneGUI(SceneView sv)
+        {
+            if (!showOverlay || lastLayout == null || tileSet == null) return;
+            var L = lastLayout;
+            float cs = tileSet.cellSize;
+            float y = 0.03f;
+
+            // Cells
+            for (int x = 0; x < L.W; x++)
+                for (int z = 0; z < L.D; z++)
+                {
+                    var kind = L.cells[x, z].kind;
+                    if (kind == CellKind.Empty) continue;
+                    Color face = kind == CellKind.Column
+                        ? new Color(0.9f, 0.2f, 0.2f, 0.18f)
+                        : new Color(0.3f, 0.6f, 1f, 0.07f);
+                    float x0 = x * cs, z0 = z * cs, x1 = (x + 1) * cs, z1 = (z + 1) * cs;
+                    var verts = new[]
+                    {
+                        new Vector3(x0, y, z0), new Vector3(x1, y, z0),
+                        new Vector3(x1, y, z1), new Vector3(x0, y, z1)
+                    };
+                    Handles.DrawSolidRectangleWithOutline(verts, face, Color.clear);
+                }
+
+            // Edges
+            for (int col = 0; col < L.W; col++)
+                for (int row = 0; row <= L.D; row++)
+                    DrawEdgeGizmo(L.EffectiveH(col, row),
+                        new Vector3(col * cs, y, row * cs), new Vector3((col + 1) * cs, y, row * cs));
+
+            for (int col = 0; col <= L.W; col++)
+                for (int row = 0; row < L.D; row++)
+                    DrawEdgeGizmo(L.EffectiveV(col, row),
+                        new Vector3(col * cs, y, row * cs), new Vector3(col * cs, y, (row + 1) * cs));
+        }
+
+        private static void DrawEdgeGizmo(Edge e, Vector3 a, Vector3 b)
+        {
+            if (e.barrier == Barrier.None) return;
+
+            Handles.color = Color.white;
+            Handles.DrawAAPolyLine(3f, a, b);
+
+            if (e.opening == Opening.None) return;
+            Handles.color = e.opening switch
+            {
+                Opening.Door => Color.green,
+                Opening.Window => Color.cyan,
+                _ => Color.clear
+            };
+            var mid = (a + b) * 0.5f;
+            Handles.DrawWireDisc(mid, Vector3.up, 0.35f);
         }
 
         //==================== UTILITY ====================
 
+        private static bool NonEmpty(GameObject[] arr) => arr != null && arr.Length > 0;
+
         private static GameObject Pick(GameObject[] arr)
         {
-            if (arr == null || arr.Length == 0) return null;
+            if (!NonEmpty(arr)) return null;
             return arr[Random.Range(0, arr.Length)];
         }
 
         private GameObject Place(GameObject prefab, Vector3 pos, Quaternion rot, Transform parent)
         {
+            if (prefab == null) return null;
             var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
             go.transform.SetPositionAndRotation(pos, rot);
             go.transform.SetParent(parent, true);
@@ -484,13 +733,6 @@ namespace Ludocore
             return go.transform;
         }
 
-        private static void Fill(EdgeState[,] arr, EdgeState val)
-        {
-            for (int a = 0; a < arr.GetLength(0); a++)
-                for (int b = 0; b < arr.GetLength(1); b++)
-                    arr[a, b] = val;
-        }
-
         //==================== DEFAULT TILE SET ====================
 
         private void CreateDefaultTileSet()
@@ -499,59 +741,16 @@ namespace Ludocore
             so.cellSize = 3f;
             so.wallHeight = 3f;
 
-            so.floorTiles = LoadPrefabs(
-                "Floor/BR_Floor_3x3",
-                "Floor/BR_Floor_3x3_Debris",
-                "Floor/BR_Floor_3x3_Hole");
-
-            so.ceilingTiles = LoadPrefabs(
-                "Floor/BR_Floor_3x3");
-
-            so.wallSolid = LoadPrefabs(
-                "Wall/BR_Wall_A_3x3",
-                "Wall/BR_Wall_A_3x3_Debris");
-
-            so.wallDoor = LoadPrefabs(
-                "Wall/BR_Wall_A_3x3_Door_A",
-                "Wall/BR_Wall_A_3x3_Door_B",
-                "Wall/BR_Wall_A_3x3_Door_C");
-
-            so.wallWindow = LoadPrefabs(
-                "Wall/BR_Wall_A_3x3_Window_A",
-                "Wall/BR_Wall_A_3x3_Window_B",
-                "Wall/BR_Wall_A_3x3_Window_C");
-
-            so.corners = LoadPrefabs("Wall/BR_Wall_A_Corner_3m");
-
-            so.doorInserts = LoadPrefabs(
-                "DoorWindow/Door_A_Grp",
-                "DoorWindow/Door_B_Grp",
-                "DoorWindow/Door_C_Grp",
-                "DoorWindow/Door_D_Grp");
-
-            so.windowInserts = LoadPrefabs(
-                "DoorWindow/Wndw_A_Grp",
-                "DoorWindow/Wndw_B_Grp",
-                "DoorWindow/Wndw_C_Grp");
+            string summary = BackroomsTileSetPopulator.Populate(so, PrefabBase);
 
             string path = AssetDatabase.GenerateUniqueAssetPath(
                 "Assets/BackroomsTileSet_Default.asset");
             AssetDatabase.CreateAsset(so, path);
             AssetDatabase.SaveAssets();
             tileSet = so;
+            RememberTileSet();
             EditorGUIUtility.PingObject(so);
-        }
-
-        private static GameObject[] LoadPrefabs(params string[] paths)
-        {
-            var list = new List<GameObject>();
-            foreach (string p in paths)
-            {
-                var go = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabBase}/{p}.prefab");
-                if (go != null) list.Add(go);
-                else Debug.LogWarning($"[BackroomsGenerator] Missing: {PrefabBase}/{p}.prefab");
-            }
-            return list.ToArray();
+            Debug.Log(summary, so);
         }
     }
 }

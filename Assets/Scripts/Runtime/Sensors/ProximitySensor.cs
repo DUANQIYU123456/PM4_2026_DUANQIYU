@@ -14,6 +14,9 @@ namespace Ludocore
         [Tooltip("Which layers can be detected")]
         [SerializeField] private LayerMask layerMask = ~0;
 
+        /// <summary>Detection radius. Read-only accessor for components that scale falloff to the sensor's reach.</summary>
+        public float Radius => radius;
+
         //==================== STATE =====================
         private readonly Collider[] _overlapBuffer = new Collider[64];
         private readonly HashSet<GameObject> _currentFrame = new();

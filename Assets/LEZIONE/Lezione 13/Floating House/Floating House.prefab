@@ -1,0 +1,332 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &5215529218459685366
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1651135658241191050}
+  - component: {fileID: 5985431634741663657}
+  m_Layer: 0
+  m_Name: House Sensor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1651135658241191050
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5215529218459685366}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0.09032979, w: 0.99591196}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3349169326418549271}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5985431634741663657
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5215529218459685366}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b6a1f23bf96ff64ea535dd0cc38ff8f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ludocore.ProximitySensor
+  requiredTags:
+  - Player
+  signals: []
+  detectedEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  lostEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  radius: 15
+  layerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+--- !u!1 &6204963705198233064
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 251369540346531930}
+  - component: {fileID: 7651728660059248903}
+  - component: {fileID: 1715293973411485668}
+  m_Layer: 0
+  m_Name: House Rig
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &251369540346531930
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6204963705198233064}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0.09032979, w: 0.99591196}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 3884689373313202111}
+  m_Father: {fileID: 3349169326418549271}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: -10.365}
+--- !u!54 &7651728660059248903
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6204963705198233064}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
+--- !u!114 &1715293973411485668
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6204963705198233064}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3478853c8bf9f1142aeeb4e67ec5c960, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ludocore.ProximityMover
+  sensor: {fileID: 5985431634741663657}
+  profile: {fileID: 11400000, guid: 72c5c0126bde10a46a08e1a777e2ba7a, type: 2}
+  thresholdEnteredEvent:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 7651728660059248903}
+        m_TargetAssemblyTypeName: UnityEngine.Rigidbody, UnityEngine
+        m_MethodName: set_isKinematic
+        m_Mode: 6
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 1
+        m_CallState: 2
+      - m_Target: {fileID: 603808399121659098}
+        m_TargetAssemblyTypeName: Ludocore.Float, Assembly-CSharp
+        m_MethodName: Play
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+  thresholdExitedEvent:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 7651728660059248903}
+        m_TargetAssemblyTypeName: UnityEngine.Rigidbody, UnityEngine
+        m_MethodName: set_isKinematic
+        m_Mode: 6
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 603808399121659098}
+        m_TargetAssemblyTypeName: Ludocore.Float, Assembly-CSharp
+        m_MethodName: Stop
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+  progress: 0
+  aboveThreshold: 0
+--- !u!1 &7965727050973247851
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3349169326418549271}
+  m_Layer: 0
+  m_Name: Floating House
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3349169326418549271
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7965727050973247851}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 6.93, y: 27.5, z: 30.66}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1651135658241191050}
+  - {fileID: 251369540346531930}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &2144160107140269443
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 251369540346531930}
+    m_Modifications:
+    - target: {fileID: 2178982091134696598, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_Convex
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2550012150744213638, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_Name
+      value: House
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4136904103360319104, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_Convex
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4250899280297931342, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_Convex
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6112713302329683402, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_Convex
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 9129754925145998647, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      propertyPath: m_Convex
+      value: 1
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 2550012150744213638, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 603808399121659098}
+  m_SourcePrefab: {fileID: 100100000, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+--- !u!4 &3884689373313202111 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2893745446897431100, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+  m_PrefabInstance: {fileID: 2144160107140269443}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &4513416942108880133 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2550012150744213638, guid: 8f791e7bddeba00459f4c00269379f29, type: 3}
+  m_PrefabInstance: {fileID: 2144160107140269443}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &603808399121659098
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4513416942108880133}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b94bb770589c41042813715e1f7789ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Ludocore.Float
+  positionAmplitude: {x: 0.25, y: 0.6, z: 0.25}
+  rotationAmplitude: {x: 3, y: 2, z: 3}
+  speed: 0.25
+  useLocalSpace: 1
+  autoPlay: 0
+  randomizeSeed: 1
+  seed: 0

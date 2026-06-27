@@ -1,0 +1,81 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd416619dfcbf2549aa69b3a53dcd7e8, type: 3}
+  m_Name: BackroomsTileSet_Default
+  m_EditorClassIdentifier: Assembly-CSharp::Ludocore.BackroomsTileSet
+  cellSize: 3
+  wallHeight: 3
+  floorTiles:
+  - {fileID: 3501810986385036607, guid: 3857728036168af4487fc614c42e6467, type: 3}
+  floorHole:
+  - {fileID: 3568790233894590428, guid: a662035f4f20f4a40bae58be3eecbcba, type: 3}
+  floorDoor:
+  - {fileID: 5169796978292991120, guid: cd0a2801f9e077343980d532f41e4388, type: 3}
+  ceilingTiles:
+  - {fileID: 3501810986385036607, guid: 3857728036168af4487fc614c42e6467, type: 3}
+  wallSolid:
+  - {fileID: 5776985689550648310, guid: 9c80fd2e993532548bf499390b16405a, type: 3}
+  wallHole:
+  - {fileID: 8469252157616628830, guid: 9295a9ba40e836144a5bab2db9eb10de, type: 3}
+  doorVariants:
+  - label: Rectangular Door
+    cutouts:
+    - {fileID: 5206454588616500317, guid: 4a132772a3d6d7b4b84ffd109548ad4c, type: 3}
+    inserts:
+    - {fileID: 4279030730084072890, guid: 381052fe07f7bf34bbb02b25afe30c8e, type: 3}
+    - {fileID: 7217289073556045062, guid: 040b093582f1db944ad92e0ba44f4c64, type: 3}
+  - label: Round Door
+    cutouts:
+    - {fileID: 8916483593106403950, guid: 030d82e090cdace47aa0515875102254, type: 3}
+    inserts:
+    - {fileID: 8559450848074965709, guid: 78db1c7ad4147da4bbb9b983c5efb3cc, type: 3}
+    - {fileID: 1064407453919151219, guid: 33c5898ebf02dfb44a1d232f14db38f9, type: 3}
+  - label: Double Door
+    cutouts:
+    - {fileID: 4193348614938776684, guid: 3728313d3efebeb40a4eb455f56f5f64, type: 3}
+    inserts:
+    - {fileID: 9189278550627971777, guid: 9823dcf4999f36441b08cf4ae971b303, type: 3}
+    - {fileID: 1477452452457132264, guid: baff78b0b09ce61499ffa460d38354da, type: 3}
+    - {fileID: 7371717953209777503, guid: b0161caf09d6c0349ad9dc771892c43e, type: 3}
+    - {fileID: 3865026443349451147, guid: f75de2ad102a18345aa4a4d2a000abef, type: 3}
+  doorOpenings:
+  - {fileID: 5423946977745429741, guid: 5433c832d8923a14c883801c76e8c14f, type: 3}
+  - {fileID: 4857429045279965887, guid: bc0b2b1b54d692a43b87d4aff85daad8, type: 3}
+  - {fileID: 8242360483957513867, guid: 7f941011700683241bb4d0190fcaceae, type: 3}
+  windowVariants:
+  - label: Rectangular Window
+    cutouts:
+    - {fileID: 1946367441126250264, guid: b968ea9ecb85cd44db1ccdf2e28095c2, type: 3}
+    inserts:
+    - {fileID: 524763945915659342, guid: acc696d35b1f06c498c8fd0c53312bcd, type: 3}
+    - {fileID: 1903855710795559327, guid: 005d6c5e8175d7a47b128e494c570e70, type: 3}
+  - label: Round Window
+    cutouts:
+    - {fileID: 4270718859238009991, guid: d1173eecd74d3544db40e2695ccd1f6f, type: 3}
+    inserts:
+    - {fileID: 1467853008044531652, guid: 20883c1d6c747664e934abb806e31352, type: 3}
+    - {fileID: 1555392536951862611, guid: ba023aa6ee56c3045b4ae1d50cd07a04, type: 3}
+  - label: Double Window
+    cutouts:
+    - {fileID: 5364125002879458582, guid: b1f9beb7f69b75b4ea1ec980b3e43e5b, type: 3}
+    inserts:
+    - {fileID: 6786929940085831945, guid: a06444ce2e9dc6142b3f7893bbc3f552, type: 3}
+    - {fileID: 2411537923053575182, guid: c613ace097940fd4586421ecf0a09b28, type: 3}
+    - {fileID: 3387118324192474286, guid: 8ebd2ff1b7212874e923aa838ef67191, type: 3}
+  windowOpenings:
+  - {fileID: 6803798236796281261, guid: 9e225c8425331d942ab27b5c4e717e9d, type: 3}
+  - {fileID: 8588974371271713768, guid: b07648fd9a3101e4e951d6fddac8c26c, type: 3}
+  - {fileID: 7188720765153726896, guid: 9c308c93a71bcf54ba31c46f086e60c9, type: 3}
+  posts:
+  - {fileID: 7394178924032955549, guid: 7de5e1d243e9de3429bc415949761452, type: 3}
+  ledges:
+  - {fileID: 5805581321491743537, guid: 8f0b569e33cdfac4083b7c6bbae08c90, type: 3}
